@@ -1010,17 +1010,30 @@ document.addEventListener('DOMContentLoaded', () => {
 const APPS_SCRIPT_URL = 'https://script.google.com/macros/s/AKfycbysaqqELuS-n8msn7YNwVzf3KKzBYOqlb1i7i82tN4FLETrboxy8LQmL5TNkDr92lP5/exec';
 let POLL = { id: '', question: '', options: [] };
 
+function jsonp(url) {
+  return new Promise((resolve, reject) => {
+    const cbName = 'pollcb_' + Date.now();
+    window[cbName] = (data) => {
+      delete window[cbName];
+      document.head.removeChild(script);
+      resolve(data);
+    };
+    const script = document.createElement('script');
+    script.src   = url + '&callback=' + cbName;
+    script.onerror = () => reject(new Error('JSONP failed'));
+    document.head.appendChild(script);
+  });
+}
+
 async function initPoll() {
   try {
-    const res  = await fetch(`${APPS_SCRIPT_URL}?action=getPoll`);
-    const data = await res.json();
+    const data = await jsonp(`${APPS_SCRIPT_URL}?action=getPoll`);
     POLL = { id: data.poll_id, question: data.question, options: data.options };
-
     const voted = localStorage.getItem('voted_' + POLL.id);
     if (voted !== null) renderPollResults();
     else renderPollVoting();
   } catch(e) {
-    document.getElementById('poll-question-text').textContent = 'Poll loading...';
+    document.getElementById('poll-question-text').textContent = 'Poll unavailable right now.';
   }
 }
 
@@ -1035,13 +1048,15 @@ function renderPollVoting() {
     btn.addEventListener('click', e => { e.stopPropagation(); castVote(i); });
     container.appendChild(btn);
   });
-  document.getElementById('poll-vote-view').style.display   = 'block';
+  document.getElementById('poll-vote-view').style.display    = 'block';
   document.getElementById('poll-results-view').style.display = 'none';
 }
 
 async function castVote(index) {
   localStorage.setItem('voted_' + POLL.id, String(index));
-  await fetch(`${APPS_SCRIPT_URL}?action=vote&poll_id=${POLL.id}&option_index=${index}`);
+  try {
+    await jsonp(`${APPS_SCRIPT_URL}?action=vote&poll_id=${encodeURIComponent(POLL.id)}&option_index=${index}`);
+  } catch(e) { /* vote still recorded locally */ }
   renderPollResults();
 }
 
@@ -1051,8 +1066,7 @@ async function renderPollResults() {
 
   let counts = {};
   try {
-    const res  = await fetch(`${APPS_SCRIPT_URL}?action=getResults&poll_id=${POLL.id}`);
-    const data = await res.json();
+    const data = await jsonp(`${APPS_SCRIPT_URL}?action=getResults&poll_id=${encodeURIComponent(POLL.id)}`);
     counts = data.counts || {};
   } catch(e) {}
 
@@ -1082,7 +1096,6 @@ async function renderPollResults() {
 }
 
 initPoll();
-
     // ── SLIDES ──
     const slides = Array.from(document.querySelectorAll('.slide'));
     const totalSlides = slides.length;
