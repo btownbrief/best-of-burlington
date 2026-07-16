@@ -60,7 +60,10 @@
 
             height: 100vh; height: 100dvh;
 
-            display: flex; justify-content: center; align-items: center;
+            /* Column, not row: the shared nav (nav.js) inserts itself as the first
+               body child, so it must stack above the app, not sit beside it. */
+
+            display: flex; flex-direction: column; align-items: center;
 
             overflow: hidden;
 
@@ -70,7 +73,9 @@
 
         #app-container {
 
-            width: 100%; height: 100%; max-width: 480px;
+            width: 100%; max-width: 480px;
+
+            flex: 1; min-height: 0;
 
             position: relative;
 
